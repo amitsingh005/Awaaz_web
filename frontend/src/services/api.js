@@ -1,8 +1,9 @@
 /**
  * Backend API Client for AwaazWeb
+ * Uses Vite proxy by default, or explicit VITE_API_URL if configured.
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export async function checkHealth() {
   const res = await fetch(`${API_BASE}/health`);
