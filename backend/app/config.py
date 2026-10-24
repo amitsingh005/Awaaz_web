@@ -9,7 +9,6 @@ ENV_PATH = BASE_DIR / ".env"
 if ENV_PATH.exists():
     load_dotenv(dotenv_path=ENV_PATH)
 else:
-    # Check parent directory fallback
     load_dotenv()
 
 # Required credentials
@@ -23,9 +22,9 @@ if not GROQ_API_KEY:
 # Optional credentials
 TINYFISH_API_KEY = os.getenv("TINYFISH_API_KEY", "").strip()
 
-# Model configurations
-GROQ_LLM_MODEL_FAST = os.getenv("GROQ_LLM_MODEL_FAST", "llama-3.1-8b-instant").strip()
-GROQ_LLM_MODEL_STRONG = os.getenv("GROQ_LLM_MODEL_STRONG", "llama-3.3-70b-versatile").strip()
+# Model configurations (available on Groq endpoint)
+GROQ_LLM_MODEL_FAST = os.getenv("GROQ_LLM_MODEL_FAST", "qwen/qwen3.8-27b").strip()
+GROQ_LLM_MODEL_STRONG = os.getenv("GROQ_LLM_MODEL_STRONG", "openai/gpt-oss-120b").strip()
 GROQ_STT_MODEL = os.getenv("GROQ_STT_MODEL", "whisper-large-v3").strip()
 
 # Limits and Networking
