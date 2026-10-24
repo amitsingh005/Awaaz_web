@@ -1,4 +1,5 @@
-# Python environment
+cat > .gitignore <<'EOF'
+# Python
 .venv/
 venv/
 __pycache__/
@@ -9,7 +10,7 @@ __pycache__/
 node_modules/
 dist/
 
-# Environment variables and secrets
+# Environment secrets
 .env
 .env.*
 !.env.example
@@ -23,6 +24,4 @@ dist/
 # Local databases
 *.db
 *.sqlite3
-
-# IDE
-.idea/
+EOF
