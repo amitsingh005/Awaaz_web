@@ -1,0 +1,11 @@
+Safety Classification for AwaazWeb Actions:
+
+Any action that performs:
+- Financial transactions, payments, or checkout
+- Final submission of forms containing personal identity or governmental records
+- Deleting accounts, emails, or stored data
+- Booking non-refundable tickets or services
+- Sending emails or personal communications
+
+Must be classified as RISKY (requires explicit spoken voice confirmation by the user).
+Read-only searches, browsing, viewing listings, scrolling, and fetching informational data are SAFE.
