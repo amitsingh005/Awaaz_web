@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import FRONTEND_ORIGIN
 from app.routes.session import router as session_router
 from app.routes.voice import router as voice_router
+from app.routes.confirm import router as confirm_router
 
 # Configure logging without leaking secrets
 logging.basicConfig(
@@ -36,6 +37,7 @@ app.add_middleware(
 # Mount API routers
 app.include_router(session_router)
 app.include_router(voice_router)
+app.include_router(confirm_router)
 
 
 @app.get("/health", tags=["System"])
