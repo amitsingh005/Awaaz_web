@@ -222,6 +222,58 @@ body {
   color: var(--text-dim);
 }
 
+/* Confirmation Gate Actions */
+.confirm-gate-box {
+  width: 100%;
+  background: rgba(225, 29, 72, 0.08);
+  border: 2px solid var(--accent-rose);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.confirm-gate-title {
+  color: #fda4af;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.confirm-actions-wrapper {
+  display: flex;
+  gap: 16px;
+  width: 100%;
+  max-width: 450px;
+}
+
+.confirm-btn {
+  flex: 1;
+  padding: 14px 20px;
+  border-radius: var(--radius-lg);
+  font-weight: 700;
+  font-size: 1.1rem;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.15s ease, filter 0.2s;
+}
+
+.confirm-btn:hover {
+  transform: scale(1.03);
+}
+
+.confirm-yes {
+  background: #10b981;
+  color: white;
+}
+
+.confirm-no {
+  background: #ef4444;
+  color: white;
+}
+
 /* Key Shortcuts / Instructions */
 kbd {
   background: var(--bg-tertiary);

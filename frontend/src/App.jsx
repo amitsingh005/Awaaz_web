@@ -9,6 +9,7 @@ import {
   createSession,
   sendVoiceAudio,
   sendTextInput,
+  sendConfirmation,
   getSessionLog,
 } from './services/api';
 
@@ -21,9 +22,10 @@ export default function App() {
   const [options, setOptions] = useState([]);
   const [logs, setLogs] = useState([]);
   const [typedInput, setTypedInput] = useState('');
+  const [pendingAction, setPendingAction] = useState(null);
 
   const { isRecording, startRecording, stopRecording } = useRecorder();
-  const { speak, stop: stopSpeaking, hindiVoice, isSpeaking } = useSpeaker();
+  const { speak, stop: stopSpeaking, hindiVoice } = useSpeaker();
   const isProcessingRef = useRef(false);
 
   // Initialize session on load
@@ -68,6 +70,7 @@ export default function App() {
       setTranscript(reply.transcript || '');
       setReplyText(reply.reply_text || '');
       setOptions(reply.options || []);
+      setPendingAction(reply.pending_action || null);
 
       if (reply.narration && reply.narration.length > 0) {
         reply.narration.forEach((narr) => addLog(narr, 'info'));
@@ -76,6 +79,9 @@ export default function App() {
       if (reply.state === 'error') {
         playSound('error');
         setStatusMessage('Rukawat aayi hai.');
+      } else if (reply.state === 'needs_confirmation') {
+        playSound('error');
+        setStatusMessage('Pushti Chahiye: Kripya "Haan" ya "Nahi" bolein.');
       } else {
         playSound('done');
         setStatusMessage('Jawaab taiyaar hai.');
@@ -169,6 +175,30 @@ export default function App() {
     };
   }, [handleToggleRecord, isRecording]);
 
+  // Handle explicit confirmation button clicks
+  const handleConfirmAction = async (approved) => {
+    if (isProcessingRef.current) return;
+    try {
+      isProcessingRef.current = true;
+      stopSpeaking();
+      playSound('working');
+      setState('working');
+      setStatusMessage(approved ? 'Kadam confirm ho raha hai...' : 'Kadam cancel ho raha hai...');
+      addLog(`User clicked ${approved ? 'YES (Confirm)' : 'NO (Cancel)'}`, 'warning');
+
+      const reply = await sendConfirmation(sessionId, approved);
+      handleAssistantReply(reply);
+      refreshLogs(sessionId);
+    } catch (err) {
+      playSound('error');
+      setState('error');
+      setStatusMessage('Confirmation failed.');
+      addLog('Confirmation error: ' + err.message, 'error');
+    } finally {
+      isProcessingRef.current = false;
+    }
+  };
+
   // Handle typed input (for testing without microphone)
   const handleSendText = async (e) => {
     e.preventDefault();
@@ -217,6 +247,31 @@ export default function App() {
 
       {/* High-contrast status banner */}
       <StatusBanner state={state} message={statusMessage} />
+
+      {/* Safety Gate Explicit Confirmation Prompt */}
+      {state === 'needs_confirmation' && (
+        <section className="confirm-gate-box" aria-label="Confirmation Required">
+          <p className="confirm-gate-title">⚠️ Mahatvapurna Kadam: Kya aap aage badhna chahte hain?</p>
+          <div className="confirm-actions-wrapper" role="group" aria-label="Pushti Vikalp">
+            <button
+              type="button"
+              className="confirm-btn confirm-yes"
+              onClick={() => handleConfirmAction(true)}
+              aria-label="Haan, Kadam pura karo"
+            >
+              ✓ Haan (Confirm)
+            </button>
+            <button
+              type="button"
+              className="confirm-btn confirm-no"
+              onClick={() => handleConfirmAction(false)}
+              aria-label="Nahi, Cancel karo"
+            >
+              ✕ Nahi (Cancel)
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* Main Accessible Talk Button */}
       <div className="talk-button-wrapper">
