@@ -7,7 +7,7 @@ from app.config import SESSIONS_DIR
 
 class SessionManager:
     """
-    Manages session state, conversation history, and reversible action stack.
+    Manages session state, conversation history, and reversible action stack with before/after state snapshots.
     """
     def __init__(self, sessions_dir: Path = SESSIONS_DIR):
         self.sessions_dir = sessions_dir
@@ -28,6 +28,7 @@ class SessionManager:
             "history": [],
             "action_logs": [],
             "undo_stack": [],
+            "browser_profiles": {},
             "agent_runs": 0,
             "pending_action": None,
         }
@@ -59,6 +60,7 @@ class SessionManager:
                 "history": [],
                 "action_logs": [],
                 "undo_stack": [],
+                "browser_profiles": {},
                 "agent_runs": 0,
                 "pending_action": None,
             }
@@ -66,17 +68,69 @@ class SessionManager:
         self.save_session(session_id, session)
         return session
 
-    def log_action(self, session_id: str, message: str, log_type: str = "info") -> None:
+    def log_action(
+        self,
+        session_id: str,
+        message: str,
+        log_type: str = "info",
+        before_state: Optional[Dict[str, Any]] = None,
+        after_state: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """
+        Logs every action with timestamp and before/after state for auditability and undo.
+        """
         session = self.get_session(session_id)
         if not session:
             return
         entry = {
             "time": datetime.now(timezone.utc).strftime("%H:%M:%S"),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "message": message,
             "type": log_type,
+            "before_state": before_state,
+            "after_state": after_state,
         }
         session.setdefault("action_logs", []).append(entry)
         self.save_session(session_id, session)
+
+    def push_undo_action(
+        self,
+        session_id: str,
+        action_type: str,
+        description: str,
+        before_state: Dict[str, Any],
+        after_state: Dict[str, Any],
+    ) -> None:
+        """
+        Records a reversible action into the session's undo stack with state snapshots.
+        """
+        session = self.get_session(session_id)
+        if not session:
+            return
+        undo_item = {
+            "id": str(uuid.uuid4())[:8],
+            "action_type": action_type,
+            "description": description,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "before_state": before_state,
+            "after_state": after_state,
+        }
+        session.setdefault("undo_stack", []).append(undo_item)
+        self.save_session(session_id, session)
+
+    def pop_undo_action(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Pops and returns the most recent reversible action from the undo stack.
+        """
+        session = self.get_session(session_id)
+        if not session:
+            return None
+        undo_stack = session.get("undo_stack", [])
+        if not undo_stack:
+            return None
+        item = undo_stack.pop()
+        self.save_session(session_id, session)
+        return item
 
     def get_logs(self, session_id: str) -> List[Dict[str, Any]]:
         session = self.get_session(session_id)

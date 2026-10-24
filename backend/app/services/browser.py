@@ -133,6 +133,28 @@ def fetch_page_content(url: str, max_chars: int = 3000) -> str:
     return ""
 
 
+def get_or_create_browser_profile(service_name: str, session_id: str) -> Optional[str]:
+    """
+    Retrieves or establishes a TinyFish Browser Context Profile for saved login sessions.
+    Stores the profile ID in session state for cross-request authenticated reuse.
+    """
+    session = session_manager.get_session(session_id)
+    if not session:
+        return None
+
+    profiles = session.get("browser_profiles", {})
+    if service_name in profiles:
+        return profiles[service_name]
+
+    # Initialize a new browser profile identifier
+    profile_id = f"profile_{service_name.lower().replace(' ', '_')}_{session_id[:8]}"
+    profiles[service_name] = profile_id
+    session["browser_profiles"] = profiles
+    session_manager.save_session(session_id, session)
+    session_manager.log_action(session_id, f"Browser Profile registered for {service_name}: {profile_id}", "info")
+    return profile_id
+
+
 def execute_agent_action(
     goal: str,
     start_url: str,
@@ -144,6 +166,7 @@ def execute_agent_action(
     Executes interactive browser actions via TinyFish Agent.
     - Enforces MAX_AGENT_RUNS_PER_SESSION cap.
     - Emits progress events for real-time narration ('Railway site khol raha hoon...').
+    - Supports Browser Context Profiles for saved logins.
     - Pauses for OTP/captcha handoff (needs_user_input).
     """
     session = session_manager.get_session(session_id)
@@ -179,6 +202,9 @@ def execute_agent_action(
     target_name = start_url.split("/")[2] if "://" in start_url else "portal"
     notify(f"{target_name} site khol raha hoon...")
 
+    if profile_id:
+        notify(f"Browser profile '{profile_id}' attach kiya gaya (saved login active).")
+
     # Check for credentials before interactive execution
     if requires_user_credentials(goal):
         notify("Suraksha jaanch: OTP ya Captcha handoff zaroori hai.")
@@ -207,7 +233,6 @@ def execute_agent_action(
                 on_progress=lambda p: notify(f"Pragati: {getattr(p, 'message', getattr(p, 'description', 'Processing action...'))}"),
             )
 
-            # Wait or collect result
             complete_res = getattr(agent_stream, "result", None)
             page_text = trim_page_text(str(complete_res) if complete_res else "Action executed successfully.")
 
