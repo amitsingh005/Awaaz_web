@@ -50,7 +50,64 @@ async def process_user_intent(session_id: str, user_text: str) -> ReplyResponse:
         session_id = session_manager.create_session()
         session = session_manager.get_session(session_id)
 
-    # 1. Spoken confirmation resolution if pending action exists
+    # 1. Check special voice commands (Interrupts 'ruko', 'kahan hoon', 'dobara bolo', 'wapas jao')
+    special = check_special_command(user_text)
+    if special:
+        cmd = special["command"]
+        if cmd == "repeat":
+            last_reply = session.get("last_reply", "Koi pichhla sandesh nahi mila.")
+            return ReplyResponse(
+                transcript=user_text,
+                reply_text=f"Maine kaha tha: {last_reply}",
+                state="done",
+                options=session.get("last_options", []),
+                narration=["Repeated last response"],
+            )
+        elif cmd == "stop":
+            session_manager.update_session(session_id, {
+                "state": "idle",
+                "pending_action": None,
+                "last_reply": "Thik hai, maine process rok diya hai.",
+            })
+            session_manager.log_action(session_id, "User interrupted with 'ruko'", "warning")
+            return ReplyResponse(
+                transcript=user_text,
+                reply_text="Thik hai, maine process rok diya hai. Aap naya aadesh de sakte hain.",
+                state="idle",
+                options=["Delhi se Bhopal train", "Mausam check karo"],
+                narration=["Interrupted by user ('ruko')", "Process halted"],
+            )
+        elif cmd == "undo":
+            last_action = session_manager.pop_undo_action(session_id)
+            if not last_action:
+                return ReplyResponse(
+                    transcript=user_text,
+                    reply_text="Wapas jane ke liye koi pichhla kadam nahi mila.",
+                    state="done",
+                    options=["Delhi se Bhopal train", "Mausam check karo"],
+                    narration=["No action to undo"],
+                )
+            desc = last_action.get("description", "previous action")
+            if last_action.get("before_state"):
+                session_manager.update_session(session_id, last_action["before_state"])
+            session_manager.log_action(session_id, f"Undid action via voice command: {desc}", "warning")
+            return ReplyResponse(
+                transcript=user_text,
+                reply_text=f"Pichhla kadam undo kar diya gaya: {desc}.",
+                state="done",
+                options=["Nayi request bolein", "Status dekho"],
+                narration=[f"Undid action: {desc}"],
+            )
+        else:
+            return ReplyResponse(
+                transcript=user_text,
+                reply_text=special.get("reply_text", "Aap AwaazWeb par hain."),
+                state="done",
+                options=["Delhi se Bhopal train", "Mausam check karo", "Wapas jao"],
+                narration=[f"Special command: {cmd}"],
+            )
+
+    # 2. Spoken confirmation resolution if pending action exists
     if session.get("pending_action") and session.get("state") == "needs_confirmation":
         decision = parse_spoken_confirmation(user_text)
         if decision is not None:
@@ -67,47 +124,6 @@ async def process_user_intent(session_id: str, user_text: str) -> ReplyResponse:
                     f"Spoken response detected: '{user_text}'",
                     f"Safety decision: {'APPROVED' if decision else 'CANCELLED'}",
                 ],
-            )
-
-    # 2. Check special voice commands
-    special = check_special_command(user_text)
-    if special:
-        cmd = special["command"]
-        if cmd == "repeat":
-            last_reply = session.get("last_reply", "Koi pichhla sandesh nahi mila.")
-            return ReplyResponse(
-                transcript=user_text,
-                reply_text=f"Maine kaha tha: {last_reply}",
-                state="done",
-                options=session.get("last_options", []),
-                narration=["Repeated last response"],
-            )
-        elif cmd == "undo":
-            undo_stack = session.get("undo_stack", [])
-            if not undo_stack:
-                return ReplyResponse(
-                    transcript=user_text,
-                    reply_text="Wapas jane ke liye koi pichhla kadam nahi mila.",
-                    state="done",
-                    options=[],
-                    narration=["No action to undo"],
-                )
-            last_action = undo_stack.pop()
-            session_manager.save_session(session_id, session)
-            return ReplyResponse(
-                transcript=user_text,
-                reply_text="Pichhla kadam undo kar diya gaya.",
-                state="done",
-                options=[],
-                narration=["Undid action"],
-            )
-        else:
-            return ReplyResponse(
-                transcript=user_text,
-                reply_text=special.get("reply_text", "Aap AwaazWeb par hain."),
-                state="done",
-                options=["Delhi se Bhopal train", "Mausam check karo", "Wapas jao"],
-                narration=[f"Special command: {cmd}"],
             )
 
     narration: List[str] = []
