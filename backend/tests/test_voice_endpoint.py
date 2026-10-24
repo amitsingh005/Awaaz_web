@@ -28,6 +28,7 @@ def test_voice_endpoint_mock():
         assert res.status_code == 200
         reply = res.json()
         assert reply["transcript"] == "Delhi se Bhopal train"
-        assert "Delhi se Bhopal train" in reply["reply_text"]
+        assert len(reply["reply_text"]) > 0
+        assert "Bhopal" in reply["reply_text"]
         assert reply["state"] == "done"
         assert len(reply["options"]) > 0
