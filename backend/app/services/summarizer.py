@@ -51,6 +51,7 @@ def summarize_findings(
         "Generate the concise Hinglish voice summary with numbered options now:"
     )
 
+    # Attempt 1: Fast model
     try:
         raw_output = call_llm(
             prompt=prompt,
@@ -64,14 +65,48 @@ def summarize_findings(
         data = json.loads(json_str)
         return SummaryOutput(**data)
     except Exception as e:
-        logger.warning(f"Structured summarization failed: {e}. Falling back to default Hinglish synthesis.")
-        # Fallback summary
+        logger.warning(f"Fast summarization failed: {e}. Retrying with strong model...")
+
+    # Attempt 2: Strong model fallback
+    try:
+        retry_prompt = (
+            f"User request: {user_request}\n\n"
+            f"Findings:\n{findings_str}\n\n"
+            'You MUST return ONLY a single valid JSON object:\n'
+            '{"reply_text": "Short conversational Hinglish summary", "options": ["1. Choice 1", "2. Choice 2"]}'
+        )
+        raw_output = call_llm(
+            prompt=retry_prompt,
+            system_prompt=system_prompt,
+            use_strong_model=True,
+            json_mode=False,
+            temperature=0.1,
+            max_tokens=500,
+        )
+        json_str = extract_json_payload(raw_output)
+        data = json.loads(json_str)
+        return SummaryOutput(**data)
+    except Exception as e2:
+        logger.warning(f"Structured summarization retry failed: {e2}. Generating dynamic context fallback.")
+
+    # Context-aware fallback based on actual search results (never hardcode unrelated IRCTC trains)
+    if search_results and search_results[0].get("title"):
+        first_title = search_results[0].get("title", "").strip()
+        first_snippet = search_results[0].get("snippet", "").strip()
+        cleaned_snippet = first_snippet[:150] if first_snippet else "Jankari uplabdh hai."
         fallback_text = (
-            f"Aapke sawaal '{user_request}' ke liye jankari mil gayi hai. "
-            "Pehla vikalp: IRCTC train schedule subah aur shaam uplabdh hai. "
-            "Kya aap kisi train ki seat ya kiraya janna chahenge?"
+            f"Aapke nirdesh '{user_request}' ke liye hume mila: {first_title}. "
+            f"{cleaned_snippet} Kya aap iske baare mein aur detail janna chahenge?"
         )
-        return SummaryOutput(
-            reply_text=fallback_text,
-            options=["1. Subah ki train", "2. Shaam ki train", "3. Seat availability"],
+        opts = [f"1. {first_title[:28]}", "2. Aur jankari dekho", "3. Wapas jao"]
+    else:
+        fallback_text = (
+            f"Aapke nirdesh '{user_request}' ke liye web par jaankari khoji gayi hai. "
+            "Aap agla kadam ya vishisht sawaal bol sakte hain."
         )
+        opts = ["1. Dobara bolo", "2. Wapas jao"]
+
+    return SummaryOutput(
+        reply_text=fallback_text,
+        options=opts,
+    )

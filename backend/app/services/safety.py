@@ -45,6 +45,14 @@ CONFIRM_YES_PATTERNS = [
     r"\bok\b",
     r"\bokay\b",
     r"\byep\b",
+    r"हाँ",
+    r"हां",
+    r"हाँजी",
+    r"ठीक है",
+    r"कर दो",
+    r"करदो",
+    r"आगे बढ़ो",
+    r"कन्फर्म",
 ]
 
 CONFIRM_NO_PATTERNS = [
@@ -57,6 +65,14 @@ CONFIRM_NO_PATTERNS = [
     r"\bruko\b",
     r"\bstop\b",
     r"\bchhod do\b",
+    r"नहीं",
+    r"ना",
+    r"मत करो",
+    r"कैंसिल",
+    r"रद्द करो",
+    r"रोको",
+    r"रुको",
+    r"छोड़ दो",
 ]
 
 

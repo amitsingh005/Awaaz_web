@@ -19,13 +19,23 @@ if not GROQ_API_KEY:
         "Please provide a valid Groq API key to start the backend."
     )
 
+SARVAM_API_KEY = os.getenv("SARVAM_API_KEY", "").strip()
+if not SARVAM_API_KEY:
+    raise RuntimeError(
+        "CRITICAL ERROR: SARVAM_API_KEY is missing from backend/.env. "
+        "Please provide a valid Sarvam API key to start the backend voice services."
+    )
+
 # Optional credentials
 TINYFISH_API_KEY = os.getenv("TINYFISH_API_KEY", "").strip()
 
-# Model configurations (available on Groq endpoint)
+# Model configurations
 GROQ_LLM_MODEL_FAST = os.getenv("GROQ_LLM_MODEL_FAST", "qwen/qwen3.8-27b").strip()
 GROQ_LLM_MODEL_STRONG = os.getenv("GROQ_LLM_MODEL_STRONG", "openai/gpt-oss-120b").strip()
 GROQ_STT_MODEL = os.getenv("GROQ_STT_MODEL", "whisper-large-v3").strip()
+SARVAM_STT_MODEL = os.getenv("SARVAM_STT_MODEL", "saaras:v4").strip()
+SARVAM_TTS_MODEL = os.getenv("SARVAM_TTS_MODEL", "bulbul:v3").strip()
+SARVAM_TTS_SPEAKER = os.getenv("SARVAM_TTS_SPEAKER", "shubh").strip()
 
 # Limits and Networking
 try:

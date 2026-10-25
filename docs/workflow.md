@@ -16,7 +16,7 @@ This document details the complete end-to-end lifecycle of an AwaazWeb voice int
 2. Multipart Upload (POST /api/voice -> FastAPI)
       │
       ▼
-3. Speech-to-Text (Groq Whisper 'whisper-large-v3' with Hinglish hints)
+3. Speech-to-Text (Sarvam AI Saaras 'saaras:v4' with native Hindi/Hinglish codemix)
       │
       ▼
 4. Special Command Check (ruko / kahan hoon / dobara bolo / wapas jao)
@@ -51,8 +51,8 @@ This document details the complete end-to-end lifecycle of an AwaazWeb voice int
       │
       ▼
 9. Audio Delivery & Speech Output
-      - Browser Web Audio chime plays
-      - SpeechSynthesis speaks reply in Hindi (hi-IN) voice
+      - Sarvam AI Bulbul ('bulbul:v3') synthesizes native Hindi/Hinglish audio
+      - Frontend plays high-fidelity WAV audio response
       - Real-time ActivityLog updates for sighted judges
 ```
 
