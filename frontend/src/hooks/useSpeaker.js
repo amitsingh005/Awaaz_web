@@ -1,73 +1,149 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { convertTextToSpeech } from '../services/api';
 
 /**
- * Hook for speech synthesis, auto-selecting Hindi (hi-IN) voice if available.
+ * Converts a base64 encoded audio string to an Object URL for playback.
+ */
+function base64ToBlobUrl(b64, mimeType = 'audio/wav') {
+  const byteCharacters = atob(b64);
+  const byteNumbers = new Uint8Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const blob = new Blob([byteNumbers], { type: mimeType });
+  return URL.createObjectURL(blob);
+}
+
+/**
+ * Hook for playing speech responses using Sarvam AI Bulbul TTS.
+ * Plays backend-generated audio seamlessly with fallback handling.
  */
 export function useSpeaker() {
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [hindiVoice, setHindiVoice] = useState(null);
-  const synthRef = useRef(typeof window !== 'undefined' ? window.speechSynthesis : null);
+  const [isLoadingTTS, setIsLoadingTTS] = useState(false);
+  const audioRef = useRef(null);
+  const currentBlobUrlRef = useRef(null);
 
-  const loadVoices = useCallback(() => {
-    if (!synthRef.current) return;
-    const voices = synthRef.current.getVoices();
-    // Look for hi-IN or Indian English / Hindi voice
-    const foundHindi =
-      voices.find((v) => v.lang === 'hi-IN' || v.lang === 'hi_IN') ||
-      voices.find((v) => v.lang.startsWith('hi')) ||
-      voices.find((v) => v.lang === 'en-IN');
-    if (foundHindi) {
-      setHindiVoice(foundHindi);
+  const cleanupAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
+      audioRef.current = null;
+    }
+    if (currentBlobUrlRef.current) {
+      URL.revokeObjectURL(currentBlobUrlRef.current);
+      currentBlobUrlRef.current = null;
+    }
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
     }
   }, []);
 
   useEffect(() => {
-    if (!synthRef.current) return;
-    loadVoices();
-    if (synthRef.current.onvoiceschanged !== undefined) {
-      synthRef.current.onvoiceschanged = loadVoices;
-    }
-  }, [loadVoices]);
-
-  const speak = useCallback(
-    (text, onEnd) => {
-      if (!synthRef.current) return;
-      synthRef.current.cancel(); // Stop prior speech
-
-      const utterance = new SpeechSynthesisUtterance(text);
-      if (hindiVoice) {
-        utterance.voice = hindiVoice;
-      }
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => {
-        setIsSpeaking(false);
-        if (onEnd) onEnd();
-      };
-      utterance.onerror = (e) => {
-        console.error('Speech synthesis error:', e);
-        setIsSpeaking(false);
-        if (onEnd) onEnd();
-      };
-
-      synthRef.current.speak(utterance);
-    },
-    [hindiVoice]
-  );
+    return () => {
+      cleanupAudio();
+    };
+  }, [cleanupAudio]);
 
   const stop = useCallback(() => {
-    if (synthRef.current) {
-      synthRef.current.cancel();
-      setIsSpeaking(false);
-    }
-  }, []);
+    cleanupAudio();
+    setIsSpeaking(false);
+    setIsLoadingTTS(false);
+  }, [cleanupAudio]);
+
+  /**
+   * Plays audio from base64 string or fetches from Sarvam TTS backend endpoint.
+   * @param {string|{text: string, audioBase64?: string}} input
+   * @param {() => void} [onEnd]
+   */
+  const speak = useCallback(
+    async (input, onEnd) => {
+      // Stop previous audio first
+      stop();
+
+      const text = typeof input === 'string' ? input : input?.text || '';
+      const preloadedB64 = typeof input === 'object' ? input?.audioBase64 : null;
+
+      if (!text && !preloadedB64) return;
+
+      try {
+        let audioUrl = null;
+
+        if (preloadedB64) {
+          // Fast-path: use pre-generated Sarvam audio returned in response
+          audioUrl = base64ToBlobUrl(preloadedB64, 'audio/wav');
+        } else {
+          // Fetch on-demand from Sarvam TTS endpoint
+          setIsLoadingTTS(true);
+          const audioBlob = await convertTextToSpeech(text, {
+            languageCode: 'hi-IN',
+            speaker: 'shubh',
+          });
+          audioUrl = URL.createObjectURL(audioBlob);
+          setIsLoadingTTS(false);
+        }
+
+        currentBlobUrlRef.current = audioUrl;
+        const audio = new Audio(audioUrl);
+        audioRef.current = audio;
+
+        audio.onplay = () => {
+          setIsSpeaking(true);
+        };
+
+        audio.onended = () => {
+          setIsSpeaking(false);
+          cleanupAudio();
+          if (onEnd) onEnd();
+        };
+
+        audio.onerror = (e) => {
+          console.error('Sarvam audio playback error:', e);
+          setIsSpeaking(false);
+          cleanupAudio();
+
+          // Graceful fallback to browser speech synthesis if audio playback fails
+          if (typeof window !== 'undefined' && window.speechSynthesis && text) {
+            const fallbackUtterance = new SpeechSynthesisUtterance(text);
+            fallbackUtterance.lang = 'hi-IN';
+            fallbackUtterance.onend = () => {
+              if (onEnd) onEnd();
+            };
+            window.speechSynthesis.speak(fallbackUtterance);
+          } else if (onEnd) {
+            onEnd();
+          }
+        };
+
+        await audio.play();
+      } catch (err) {
+        console.error('Failed to play Sarvam TTS response:', err);
+        setIsLoadingTTS(false);
+        setIsSpeaking(false);
+        cleanupAudio();
+
+        // Browser fallback
+        if (typeof window !== 'undefined' && window.speechSynthesis && text) {
+          const fallbackUtterance = new SpeechSynthesisUtterance(text);
+          fallbackUtterance.lang = 'hi-IN';
+          fallbackUtterance.onend = () => {
+            if (onEnd) onEnd();
+          };
+          window.speechSynthesis.speak(fallbackUtterance);
+        } else if (onEnd) {
+          onEnd();
+        }
+      }
+    },
+    [cleanupAudio, stop]
+  );
 
   return {
     isSpeaking,
+    isLoadingTTS,
     speak,
     stop,
-    hindiVoice,
+    engineName: 'Sarvam AI Bulbul (v3)',
   };
 }

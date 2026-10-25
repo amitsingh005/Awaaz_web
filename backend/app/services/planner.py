@@ -60,28 +60,28 @@ def check_special_command(text: str) -> Optional[dict]:
     """
     normalized = text.lower().strip().rstrip("?.!,")
 
-    if any(cmd in normalized for cmd in ["kahan hoon", "kahan hu", "where am i"]):
+    if any(cmd in normalized for cmd in ["kahan hoon", "kahan hu", "where am i", "कहाँ हूँ", "कहाँ hu", "कहा हु", "कहाँ हूं"]):
         return {
             "type": "special",
             "command": "where_am_i",
             "reply_text": "Aap AwaazWeb ke mukhya screen par hain. Aap web search ya navigation ke liye bol sakte hain.",
         }
 
-    if any(cmd in normalized for cmd in ["ruko", "rok do", "stop", "ruk jao"]):
+    if any(cmd in normalized for cmd in ["ruko", "rok do", "stop", "ruk jao", "रुको", "रोको", "रोक दो", "रुक जाओ"]):
         return {
             "type": "special",
             "command": "stop",
             "reply_text": "Thik hai, maine process rok diya hai.",
         }
 
-    if any(cmd in normalized for cmd in ["dobara bolo", "fir se bolo", "repeat", "repeat karo"]):
+    if any(cmd in normalized for cmd in ["dobara bolo", "fir se bolo", "repeat", "repeat karo", "दोबारा बोलो", "फिर से बोलो"]):
         return {
             "type": "special",
             "command": "repeat",
             "reply_text": None,  # Signals caller to repeat last response
         }
 
-    if any(cmd in normalized for cmd in ["wapas jao", "back jao", "undo", "go back"]):
+    if any(cmd in normalized for cmd in ["wapas jao", "back jao", "undo", "go back", "वापस जाओ", "पीछे जाओ"]):
         return {
             "type": "special",
             "command": "undo",

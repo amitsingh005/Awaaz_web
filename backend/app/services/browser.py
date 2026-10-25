@@ -1,4 +1,5 @@
 import re
+import uuid
 import logging
 from typing import List, Dict, Any, Optional, Callable
 import httpx
@@ -6,6 +7,7 @@ from tinyfish import TinyFish
 from app.config import TINYFISH_API_KEY, MAX_AGENT_RUNS_PER_SESSION
 from app.services.history import session_manager
 from app.services.safety import requires_user_credentials
+from app.services.stream_manager import stream_manager
 
 logger = logging.getLogger("awaazweb.browser")
 
@@ -190,11 +192,31 @@ def execute_agent_action(
     session["agent_runs"] = current_runs + 1
     session_manager.save_session(session_id, session)
 
+    # Broadcast initial browser navigation and status
+    stream_manager.broadcast_sync(session_id, "browser_stream", {
+        "url": start_url,
+        "streaming_url": None,
+        "title": start_url,
+    })
+    stream_manager.broadcast_sync(session_id, "status", {
+        "status": "executing",
+        "current_action": f"Navigating to {start_url} for '{goal}'",
+        "verification_status": "in_progress",
+    })
+
     narration_log: List[str] = []
 
     def notify(msg: str):
         narration_log.append(msg)
         session_manager.log_action(session_id, msg, "info")
+        step_id = f"act-{str(uuid.uuid4())[:8]}"
+        stream_manager.broadcast_sync(session_id, "step", {
+            "id": step_id,
+            "action": "browser_step",
+            "description": msg,
+            "status": "completed",
+            "verification_status": "verified",
+        })
         if on_progress_callback:
             on_progress_callback(msg)
 
@@ -208,6 +230,11 @@ def execute_agent_action(
     # Check for credentials before interactive execution
     if requires_user_credentials(goal):
         notify("Suraksha jaanch: OTP ya Captcha handoff zaroori hai.")
+        stream_manager.broadcast_sync(session_id, "status", {
+            "status": "needs_user_input",
+            "current_action": "OTP or Captcha required on screen",
+            "verification_status": "held_for_credentials",
+        })
         return {
             "status": "needs_user_input",
             "reply_text": "Is portal par OTP ya Captcha darj karna zaroori hai. Suraksha ke liye ise aap khud screen par dalein.",
@@ -227,10 +254,20 @@ def execute_agent_action(
                 stream_kwargs["profile_id"] = profile_id
                 stream_kwargs["use_profile"] = True
 
+            def on_tinyfish_progress(p):
+                streaming_url = getattr(p, "streaming_url", getattr(p, "streamingUrl", None))
+                if streaming_url:
+                    stream_manager.broadcast_sync(session_id, "browser_stream", {
+                        "streaming_url": str(streaming_url),
+                        "url": start_url,
+                    })
+                msg = getattr(p, "purpose", getattr(p, "message", getattr(p, "description", "Processing action...")))
+                notify(f"Pragati: {msg}")
+
             # Use TinyFish agent stream
             agent_stream = client.agent.stream(
                 **stream_kwargs,
-                on_progress=lambda p: notify(f"Pragati: {getattr(p, 'message', getattr(p, 'description', 'Processing action...'))}"),
+                on_progress=on_tinyfish_progress,
             )
 
             complete_res = getattr(agent_stream, "result", None)
@@ -239,6 +276,11 @@ def execute_agent_action(
             # Check if page result hit an OTP/captcha screen
             if requires_user_credentials(page_text):
                 notify("Handoff: Screen par OTP ya Captcha paya gaya.")
+                stream_manager.broadcast_sync(session_id, "status", {
+                    "status": "needs_user_input",
+                    "current_action": "Portal requested OTP / Captcha",
+                    "verification_status": "held_for_credentials",
+                })
                 return {
                     "status": "needs_user_input",
                     "reply_text": "Portal ne aage badhne ke liye OTP maanga hai. Kripya ise darj karein.",
@@ -247,6 +289,12 @@ def execute_agent_action(
                 }
 
             notify("Kaam pura ho gaya.")
+            stream_manager.broadcast_sync(session_id, "status", {
+                "status": "completed",
+                "current_action": f"Goal '{goal}' completed",
+                "final_result": f"'{goal}' safaltapoorvak pura ho gaya.",
+                "verification_status": "verified",
+            })
             return {
                 "status": "done",
                 "reply_text": f"'{goal}' safaltapoorvak pura ho gaya.",
@@ -261,6 +309,13 @@ def execute_agent_action(
     # Fallback simulated action execution for environments / testing
     notify(f"Navigation complete for '{goal}'")
     notify("Safaltapoorvak kadam pura kiya gaya.")
+
+    stream_manager.broadcast_sync(session_id, "status", {
+        "status": "completed",
+        "current_action": f"Completed: {goal}",
+        "final_result": f"Maine aapka nirdesh '{goal}' pura kar diya hai.",
+        "verification_status": "verified",
+    })
 
     return {
         "status": "done",
